@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-01-22
+
+### Added
+- **`bundle age_gate_cleanup` command**: Automatically removes exceptions that are no longer needed
+
 ## [0.4.0] - 2026-01-22
 
 ### Added
@@ -12,7 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New configuration option: `max_workers` (range: 1-16, default: 8)
 - Thread-safe data structures with Mutex guards for concurrent access
 - Graceful fallback to sequential processing if parallelisation fails
-- **`bundle age_gate_cleanup` command**: Automatically removes exceptions that are no longer needed
 
 ### Changed
 - Refactored `Command#execute` for parallelisation support
