@@ -5,12 +5,20 @@ require "yaml"
 module Bundler
   module AgeGate
     class Config
-      attr_reader :minimum_age_days, :exceptions, :audit_log_path
+      attr_reader :minimum_age_days, :exceptions, :audit_log_path, :sources
+
+      DEFAULT_RUBYGEMS_SOURCE = {
+        "name" => "rubygems",
+        "url" => "https://rubygems.org",
+        "api_endpoint" => "https://rubygems.org/api/v1/versions/%s.json",
+        "minimum_age_days" => nil # Uses global default
+      }.freeze
 
       DEFAULT_CONFIG = {
         "minimum_age_days" => 7,
         "exceptions" => [],
-        "audit_log_path" => ".bundler-age-gate.log"
+        "audit_log_path" => ".bundler-age-gate.log",
+        "sources" => [DEFAULT_RUBYGEMS_SOURCE]
       }.freeze
 
       def initialize(config_path = ".bundler-age-gate.yml")
@@ -19,6 +27,16 @@ module Bundler
         @minimum_age_days = @config["minimum_age_days"]
         @exceptions = @config["exceptions"] || []
         @audit_log_path = @config["audit_log_path"]
+        @sources = (@config["sources"] || [DEFAULT_RUBYGEMS_SOURCE]).map { |s| SourceConfig.new(s, @minimum_age_days) }
+      end
+
+      def source_for_url(source_url)
+        # Normalise URLs for comparison
+        normalised_url = normalise_source_url(source_url)
+
+        @sources.find do |source|
+          normalise_source_url(source.url) == normalised_url
+        end || @sources.first # Default to first source (usually rubygems)
       end
 
       def gem_excepted?(gem_name, gem_version)
@@ -65,6 +83,38 @@ module Bundler
         Time.parse(date_string.to_s)
       rescue ArgumentError
         nil
+      end
+
+      def normalise_source_url(url)
+        # Remove trailing slashes and convert to lowercase for comparison
+        url.to_s.downcase.chomp("/")
+      end
+    end
+
+    # Represents a gem source configuration
+    class SourceConfig
+      attr_reader :name, :url, :api_endpoint, :minimum_age_days, :auth_token
+
+      def initialize(config, global_minimum_age_days)
+        @name = config["name"] || "unknown"
+        @url = config["url"]
+        @api_endpoint = config["api_endpoint"]
+        @minimum_age_days = config["minimum_age_days"] || global_minimum_age_days
+        @auth_token = resolve_auth_token(config["auth_token"])
+      end
+
+      private
+
+      def resolve_auth_token(token_config)
+        return nil unless token_config
+
+        # Support environment variable substitution: ${VAR_NAME}
+        if token_config.match?(/\$\{(.+)\}/)
+          var_name = token_config.match(/\$\{(.+)\}/)[1]
+          ENV[var_name]
+        else
+          token_config
+        end
       end
     end
   end

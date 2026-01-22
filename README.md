@@ -96,6 +96,48 @@ All checks are logged to `.bundler-age-gate.log` in JSON format:
 - Demonstrate policy compliance
 - Investigate historical violations
 
+### Multi-Source Support
+
+Configure different age requirements for different gem sources (public vs private):
+
+```yaml
+minimum_age_days: 7  # Global default
+
+sources:
+  # Public RubyGems - strict
+  - name: rubygems
+    url: https://rubygems.org
+    api_endpoint: https://rubygems.org/api/v1/versions/%s.json
+    minimum_age_days: 7
+
+  # Internal GitHub Packages - less strict
+  - name: github-internal
+    url: https://rubygems.pkg.github.com/your-org
+    api_endpoint: https://rubygems.pkg.github.com/your-org/api/v1/versions/%s.json
+    minimum_age_days: 3
+    auth_token: ${GITHUB_TOKEN}  # Environment variable
+
+  # Internal Artifactory - very permissive
+  - name: artifactory
+    url: https://artifactory.company.com/api/gems
+    api_endpoint: https://artifactory.company.com/api/gems/api/v1/versions/%s.json
+    minimum_age_days: 1
+    auth_token: ${ARTIFACTORY_API_KEY}
+```
+
+**Benefits:**
+- Stricter requirements for public gems (supply chain risk)
+- Permissive for internal gems (trusted sources)
+- Per-source API endpoints for private registries
+- Authentication support via environment variables
+- CLI override still applies globally: `bundle age_check 14` enforces 14 days for ALL sources
+
+**How it works:**
+1. Plugin reads `Gemfile.lock` to determine each gem's source
+2. Applies per-source minimum age requirements
+3. Queries appropriate API endpoint with authentication
+4. Reports violations with source context
+
 ## How It Works
 
 1. Parses your `Gemfile.lock` using Bundler's built-in parser
@@ -232,12 +274,14 @@ bundle exec rake
 
 Future enhancements planned:
 
-- [ ] **Private gem server support**: Configurable API endpoints for GitHub Packages, Artifactory, etc.
-- [ ] **Multi-source detection**: Automatically detect gem sources from Gemfile
+- [x] **Private gem server support**: ✅ Implemented in v0.3.0
+- [x] **Multi-source detection**: ✅ Implemented in v0.3.0
+- [x] **Transitive dependency checking**: ✅ Already included (checks entire Gemfile.lock)
 - [ ] **Webhook notifications**: Slack/Teams alerts for violations
 - [ ] **Policy-as-code**: YAML policy files with team-specific rules
 - [ ] **Exemption templates**: Pre-approved exception categories (security patches, internal gems)
 - [ ] **Metrics dashboard**: Web dashboard for organisation-wide compliance
+- [ ] **Dependency tree visualisation**: Show which gems introduced young dependencies
 
 ## Contributing
 

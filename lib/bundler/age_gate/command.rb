@@ -10,24 +10,18 @@ require_relative "audit_logger"
 module Bundler
   module AgeGate
     class Command
-      API_ENDPOINT = "https://rubygems.org/api/v1/versions/%s.json"
-
       def initialize(days = nil)
         @config = Config.new
-        @min_age_days = days ? days.to_i : @config.minimum_age_days
+        @cli_override_days = days&.to_i
         @cache = {}
         @violations = []
         @excepted_violations = []
-        @cutoff_date = Time.now - (@min_age_days * 24 * 60 * 60)
         @audit_logger = AuditLogger.new(@config.audit_log_path)
         @checked_gems_count = 0
+        @source_map = {}  # gem_name => source_url
       end
 
       def execute
-        puts "🔍 Checking gem ages (minimum: #{@min_age_days} days)..."
-        puts "📅 Cutoff date: #{@cutoff_date.strftime('%Y-%m-%d')}"
-        puts ""
-
         lockfile_path = File.join(Dir.pwd, "Gemfile.lock")
 
         unless File.exist?(lockfile_path)
@@ -37,6 +31,21 @@ module Bundler
 
         lockfile = Bundler::LockfileParser.new(Bundler.read_file(lockfile_path))
         gems = lockfile.specs
+
+        # Build source map from lockfile
+        build_source_map(lockfile)
+
+        # Display configuration
+        if @cli_override_days
+          puts "🔍 Checking gem ages (CLI override: #{@cli_override_days} days for all sources)..."
+          puts "📅 Cutoff date: #{Time.now - (@cli_override_days * 24 * 60 * 60)}"
+        else
+          puts "🔍 Checking gem ages (per-source configuration)..."
+          @config.sources.each do |source|
+            puts "  📦 #{source.name}: #{source.minimum_age_days} days"
+          end
+        end
+        puts ""
 
         puts "Checking #{gems.size} gems..."
         print "Progress: "
@@ -52,6 +61,22 @@ module Bundler
 
       private
 
+      def build_source_map(lockfile)
+        # Parse REMOTE sections from lockfile to map gems to sources
+        lockfile_content = File.read(File.join(Dir.pwd, "Gemfile.lock"))
+        current_source = nil
+
+        lockfile_content.each_line do |line|
+          if line.match(/^\s*remote: (.+)$/)
+            current_source = line.match(/^\s*remote: (.+)$/)[1].strip
+          elsif line.match(/^\s{4}(\S+)/) && current_source
+            gem_name_with_version = line.strip
+            gem_name = gem_name_with_version.split(/\s+/).first
+            @source_map[gem_name] = current_source
+          end
+        end
+      end
+
       def check_gem(spec)
         gem_name = spec.name
         gem_version = spec.version.to_s
@@ -61,7 +86,14 @@ module Bundler
         return if @cache.key?(cache_key)
 
         @checked_gems_count += 1
-        release_date = fetch_gem_release_date(gem_name, gem_version)
+
+        # Determine source and minimum age for this gem
+        gem_source_url = @source_map[gem_name] || "https://rubygems.org"
+        source_config = @config.source_for_url(gem_source_url)
+        min_age_days = @cli_override_days || source_config.minimum_age_days
+        cutoff_date = Time.now - (min_age_days * 24 * 60 * 60)
+
+        release_date = fetch_gem_release_date(gem_name, gem_version, source_config)
 
         if release_date.nil?
           # Couldn't determine date, skip silently
@@ -71,13 +103,15 @@ module Bundler
 
         @cache[cache_key] = release_date
 
-        if release_date > @cutoff_date
+        if release_date > cutoff_date
           age_days = ((Time.now - release_date) / (24 * 60 * 60)).round
           violation = {
             name: gem_name,
             version: gem_version,
             release_date: release_date,
-            age_days: age_days
+            age_days: age_days,
+            source: source_config.name,
+            required_age: min_age_days
           }
 
           # Check if this gem has an exception
@@ -94,11 +128,18 @@ module Bundler
         @cache[cache_key] = :error
       end
 
-      def fetch_gem_release_date(gem_name, gem_version)
-        uri = URI(format(API_ENDPOINT, gem_name))
+      def fetch_gem_release_date(gem_name, gem_version, source_config)
+        uri = URI(format(source_config.api_endpoint, gem_name))
 
-        response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, read_timeout: 10) do |http|
-          http.get(uri.path)
+        response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 10) do |http|
+          request = Net::HTTP::Get.new(uri.path)
+
+          # Add authentication header if configured
+          if source_config.auth_token
+            request["Authorization"] = "Bearer #{source_config.auth_token}"
+          end
+
+          http.request(request)
         end
 
         unless response.is_a?(Net::HTTPSuccess)
@@ -121,8 +162,8 @@ module Bundler
           puts "ℹ️  #{@excepted_violations.size} gem(s) have approved exceptions:\n\n"
 
           @excepted_violations.sort_by { |v| v[:age_days] }.each do |violation|
-            puts "  ⚠️  #{violation[:name]} (#{violation[:version]})"
-            puts "     Released: #{violation[:release_date].strftime('%Y-%m-%d')} (#{violation[:age_days]} days ago)"
+            puts "  ⚠️  #{violation[:name]} (#{violation[:version]}) [#{violation[:source]}]"
+            puts "     Released: #{violation[:release_date].strftime('%Y-%m-%d')} (#{violation[:age_days]} days ago, requires #{violation[:required_age]} days)"
             puts "     Exception: #{violation[:exception_reason]}"
             puts ""
           end
@@ -140,15 +181,15 @@ module Bundler
 
         # Display final result
         if @violations.empty?
-          puts "✅ All gems meet the minimum age requirement (#{@min_age_days} days)"
+          puts "✅ All gems meet their source-specific age requirements"
           puts "🎉 Safe to proceed!"
           exit 0
         else
-          puts "⚠️  Found #{@violations.size} gem(s) younger than #{@min_age_days} days:\n\n"
+          puts "⚠️  Found #{@violations.size} gem(s) that don't meet age requirements:\n\n"
 
           @violations.sort_by { |v| v[:age_days] }.each do |violation|
-            puts "  ❌ #{violation[:name]} (#{violation[:version]})"
-            puts "     Released: #{violation[:release_date].strftime('%Y-%m-%d')} (#{violation[:age_days]} days ago)"
+            puts "  ❌ #{violation[:name]} (#{violation[:version]}) [#{violation[:source]}]"
+            puts "     Released: #{violation[:release_date].strftime('%Y-%m-%d')} (#{violation[:age_days]} days ago, requires #{violation[:required_age]} days)"
             puts ""
           end
 

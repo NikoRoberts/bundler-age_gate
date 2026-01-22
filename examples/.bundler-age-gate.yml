@@ -1,20 +1,36 @@
 # Configuration file for bundler-age_gate
 # Place this file in your project root
 
-# Minimum age in days for gems (default: 7)
+# Global minimum age in days (default for all sources)
 minimum_age_days: 7
 
 # Path to audit log file (default: .bundler-age-gate.log)
-# This file tracks all checks for compliance purposes
 audit_log_path: .bundler-age-gate.log
 
+# Gem sources configuration
+# Define multiple sources with different age requirements
+sources:
+  # Public RubyGems (default)
+  - name: rubygems
+    url: https://rubygems.org
+    api_endpoint: https://rubygems.org/api/v1/versions/%s.json
+    minimum_age_days: 7  # Stricter for public gems
+
+  # GitHub Packages (private gems)
+  - name: github-internal
+    url: https://rubygems.pkg.github.com/your-org
+    api_endpoint: https://rubygems.pkg.github.com/your-org/api/v1/versions/%s.json
+    minimum_age_days: 3  # Less strict for internal packages
+    auth_token: ${GITHUB_TOKEN}  # Environment variable substitution
+
+  # Internal Artifactory
+  - name: artifactory
+    url: https://artifactory.company.com/api/gems
+    api_endpoint: https://artifactory.company.com/api/gems/api/v1/versions/%s.json
+    minimum_age_days: 1  # Very permissive for internal gems
+    auth_token: ${ARTIFACTORY_API_KEY}
+
 # Exceptions for approved gems
-# Each exception requires:
-#   - gem: gem name
-#   - version: (optional) specific version, omit to apply to all versions
-#   - reason: explanation for the exception
-#   - approved_by: who approved this exception
-#   - expires: (optional) when this exception expires (YYYY-MM-DD)
 exceptions:
   # Example: Critical security fix
   - gem: rails
@@ -23,8 +39,8 @@ exceptions:
     approved_by: security-team
     expires: 2026-02-15
 
-  # Example: All versions of a gem (use sparingly)
-  - gem: internal-company-gem
+  # Example: Internal gem (all versions)
+  - gem: company-shared-utils
     reason: "Internal gem under our control"
     approved_by: platform-team
 

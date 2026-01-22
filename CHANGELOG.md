@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-22
+
+### Added
+- **Multi-source support**: Configure different age requirements per gem source
+  - Public RubyGems (strict) vs private gems (permissive)
+  - Per-source API endpoint configuration
+  - GitHub Packages, Artifactory, and custom registry support
+- **Authentication support**: Bearer tokens for private gem servers
+  - Environment variable substitution (e.g., `${GITHUB_TOKEN}`)
+- **Source detection**: Automatically determines gem sources from Gemfile.lock
+- **Per-source minimum age**: Different requirements for public vs internal gems
+- **CLI override**: Command-line days argument overrides all source configurations
+
+### Changed
+- Violation output now includes source name and required age
+- Configuration structure expanded to support multiple sources
+- Default configuration maintains backwards compatibility (RubyGems only)
+
 ## [0.2.0] - 2026-01-22
 
 ### Added
