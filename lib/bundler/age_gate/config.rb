@@ -38,7 +38,8 @@ module Bundler
 
       def load_config
         if File.exist?(@config_path)
-          YAML.safe_load_file(@config_path, permitted_classes: [Date, Time])
+          user_config = YAML.safe_load_file(@config_path, permitted_classes: [Date, Time])
+          DEFAULT_CONFIG.merge(user_config || {})
         else
           DEFAULT_CONFIG
         end
