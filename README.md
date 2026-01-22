@@ -277,11 +277,7 @@ Future enhancements planned:
 - [x] **Private gem server support**: ✅ Implemented in v0.3.0
 - [x] **Multi-source detection**: ✅ Implemented in v0.3.0
 - [x] **Transitive dependency checking**: ✅ Already included (checks entire Gemfile.lock)
-- [ ] **Webhook notifications**: Slack/Teams alerts for violations
-- [ ] **Policy-as-code**: YAML policy files with team-specific rules
 - [ ] **Exemption templates**: Pre-approved exception categories (security patches, internal gems)
-- [ ] **Metrics dashboard**: Web dashboard for organisation-wide compliance
-- [ ] **Dependency tree visualisation**: Show which gems introduced young dependencies
 
 ## Contributing
 
