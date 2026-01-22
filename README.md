@@ -272,12 +272,16 @@ bundle exec rake
 
 ## Roadmap
 
-Future enhancements planned:
+All planned features have been implemented! 🎉
 
 - [x] **Private gem server support**: ✅ Implemented in v0.3.0
 - [x] **Multi-source detection**: ✅ Implemented in v0.3.0
+- [x] **Per-source age requirements**: ✅ Implemented in v0.3.0
+- [x] **Authentication for private sources**: ✅ Implemented in v0.3.0
+- [x] **Exception handling**: ✅ Implemented in v0.2.0
+- [x] **Audit logging**: ✅ Implemented in v0.2.0
+- [x] **CI/CD integration examples**: ✅ Implemented in v0.2.0
 - [x] **Transitive dependency checking**: ✅ Already included (checks entire Gemfile.lock)
-- [ ] **Exemption templates**: Pre-approved exception categories (security patches, internal gems)
 
 ## Contributing
 
