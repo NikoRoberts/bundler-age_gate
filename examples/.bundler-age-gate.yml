@@ -7,6 +7,12 @@ minimum_age_days: 7
 # Path to audit log file (default: .bundler-age-gate.log)
 audit_log_path: .bundler-age-gate.log
 
+# Parallelisation settings (NEW in v0.4.0)
+# Number of concurrent workers for checking gem ages
+# Default: 8 (recommended for most projects)
+# Range: 1 (sequential) to 16 (maximum)
+max_workers: 8
+
 # Gem sources configuration
 # Define multiple sources with different age requirements
 sources:

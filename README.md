@@ -159,6 +159,17 @@ sources:
 - **Audit logging**: Compliance-ready logs for all checks
 - **Enterprise-ready**: Designed for organisation-wide rollout
 
+## Performance
+
+Parallel gem checking with configurable concurrency (default: 8 workers).
+
+Configure via `.bundler-age-gate.yml`:
+```yaml
+max_workers: 8  # Recommended for most projects (range: 1-16)
+```
+
+Set `max_workers: 1` to disable parallelisation if needed.
+
 ## Example Output
 
 ```

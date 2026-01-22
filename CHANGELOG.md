@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-22
+
+### Added
+- **Parallel gem checking**: Concurrent HTTP requests for faster age verification
+- New configuration option: `max_workers` (range: 1-16, default: 8)
+- Thread-safe data structures with Mutex guards for concurrent access
+- Graceful fallback to sequential processing if parallelisation fails
+
+### Changed
+- Refactored `Command#execute` for parallelisation support
+- Added `check_gems_parallel()` and `check_gems_sequential()` methods
+- HTTP I/O operations now execute concurrently without blocking
+
+### Backwards Compatibility
+- Existing configs work unchanged (defaults to 8 workers)
+- Set `max_workers: 1` for sequential processing (debugging or CI constraints)
+
 ## [0.3.0] - 2026-01-22
 
 ### Added

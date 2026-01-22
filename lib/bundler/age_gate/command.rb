@@ -19,6 +19,12 @@ module Bundler
         @audit_logger = AuditLogger.new(@config.audit_log_path)
         @checked_gems_count = 0
         @source_map = {}  # gem_name => source_url
+
+        # Thread-safety primitives for parallel processing
+        @cache_mutex = Mutex.new          # Protect @cache hash
+        @violations_mutex = Mutex.new     # Protect @violations arrays
+        @progress_mutex = Mutex.new       # Protect stdout
+        @checked_count_mutex = Mutex.new  # Protect counter
       end
 
       def execute
@@ -50,9 +56,15 @@ module Bundler
         puts "Checking #{gems.size} gems..."
         print "Progress: "
 
-        gems.each do |spec|
-          check_gem(spec)
-          print "."
+        # Determine worker count
+        max_workers = @config.max_workers || 8
+        worker_count = [[max_workers, gems.size].min, 1].max
+
+        # Parallel or sequential
+        if worker_count > 1
+          check_gems_parallel(gems, worker_count)
+        else
+          check_gems_sequential(gems)
         end
 
         puts "\n\n"
@@ -60,6 +72,95 @@ module Bundler
       end
 
       private
+
+      def check_gems_parallel(gems, worker_count)
+        work_queue = Queue.new
+        gems.each { |spec| work_queue << spec }
+
+        # Create worker threads
+        workers = Array.new(worker_count) do
+          Thread.new do
+            loop do
+              spec = work_queue.pop(true) rescue break  # Non-blocking pop
+              check_gem_thread_safe(spec)
+            end
+          end
+        end
+
+        # Wait for all workers to complete
+        workers.each(&:join)
+      rescue StandardError => e
+        warn "\n⚠️  Parallel processing failed: #{e.message}"
+        warn "Falling back to sequential processing..."
+        check_gems_sequential(gems)
+      end
+
+      def check_gems_sequential(gems)
+        gems.each do |spec|
+          check_gem(spec)
+          print "."
+        end
+      end
+
+      def check_gem_thread_safe(spec)
+        gem_name = spec.name
+        gem_version = spec.version.to_s
+        cache_key = "#{gem_name}@#{gem_version}"
+
+        # Check cache with lock
+        cached = @cache_mutex.synchronize { @cache[cache_key] }
+        return if cached
+
+        # Increment counter with lock
+        @checked_count_mutex.synchronize { @checked_gems_count += 1 }
+
+        # Read-only operations (no locks needed)
+        gem_source_url = @source_map[gem_name] || "https://rubygems.org"
+        source_config = @config.source_for_url(gem_source_url)
+        min_age_days = @cli_override_days || source_config.minimum_age_days
+        cutoff_date = Time.now - (min_age_days * 24 * 60 * 60)
+
+        # HTTP I/O happens here (NO LOCK - this gets parallelized!)
+        release_date = fetch_gem_release_date(gem_name, gem_version, source_config)
+
+        if release_date.nil?
+          @cache_mutex.synchronize { @cache[cache_key] = :unknown }
+          print_progress_dot
+          return
+        end
+
+        @cache_mutex.synchronize { @cache[cache_key] = release_date }
+
+        # Check violation
+        if release_date > cutoff_date
+          age_days = ((Time.now - release_date) / (24 * 60 * 60)).round
+          violation = {
+            name: gem_name,
+            version: gem_version,
+            release_date: release_date,
+            age_days: age_days,
+            source: source_config.name,
+            required_age: min_age_days
+          }
+
+          if @config.gem_excepted?(gem_name, gem_version)
+            violation[:excepted] = true
+            violation[:exception_reason] = @config.exception_reason(gem_name, gem_version)
+            @violations_mutex.synchronize { @excepted_violations << violation }
+          else
+            @violations_mutex.synchronize { @violations << violation }
+          end
+        end
+
+        print_progress_dot
+      rescue StandardError => e
+        @cache_mutex.synchronize { @cache[cache_key] = :error }
+        print_progress_dot
+      end
+
+      def print_progress_dot
+        @progress_mutex.synchronize { print "." }
+      end
 
       def build_source_map(lockfile)
         # Parse REMOTE sections from lockfile to map gems to sources

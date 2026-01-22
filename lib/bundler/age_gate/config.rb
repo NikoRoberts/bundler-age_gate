@@ -5,7 +5,7 @@ require "yaml"
 module Bundler
   module AgeGate
     class Config
-      attr_reader :minimum_age_days, :exceptions, :audit_log_path, :sources
+      attr_reader :minimum_age_days, :exceptions, :audit_log_path, :sources, :max_workers
 
       DEFAULT_RUBYGEMS_SOURCE = {
         "name" => "rubygems",
@@ -18,7 +18,8 @@ module Bundler
         "minimum_age_days" => 7,
         "exceptions" => [],
         "audit_log_path" => ".bundler-age-gate.log",
-        "sources" => [DEFAULT_RUBYGEMS_SOURCE]
+        "sources" => [DEFAULT_RUBYGEMS_SOURCE],
+        "max_workers" => 8
       }.freeze
 
       def initialize(config_path = ".bundler-age-gate.yml")
@@ -28,6 +29,7 @@ module Bundler
         @exceptions = @config["exceptions"] || []
         @audit_log_path = @config["audit_log_path"]
         @sources = (@config["sources"] || [DEFAULT_RUBYGEMS_SOURCE]).map { |s| SourceConfig.new(s, @minimum_age_days) }
+        @max_workers = parse_max_workers(@config["max_workers"])
       end
 
       def source_for_url(source_url)
@@ -53,6 +55,21 @@ module Bundler
       end
 
       private
+
+      def parse_max_workers(value)
+        return 8 unless value
+
+        workers = value.to_i
+        if workers < 1
+          warn "⚠️  Invalid max_workers: #{value}. Using default: 8"
+          8
+        elsif workers > 16
+          warn "⚠️  max_workers > 16. Using maximum: 16"
+          16
+        else
+          workers
+        end
+      end
 
       def load_config
         if File.exist?(@config_path)
