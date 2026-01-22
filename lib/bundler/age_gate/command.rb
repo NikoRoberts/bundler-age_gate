@@ -27,6 +27,98 @@ module Bundler
         @checked_count_mutex = Mutex.new  # Protect counter
       end
 
+      def clean_exceptions
+        config_path = File.join(Dir.pwd, ".bundler-age-gate.yml")
+
+        unless File.exist?(config_path)
+          puts "ℹ️  No .bundler-age-gate.yml found in current directory"
+          exit 0
+        end
+
+        lockfile_path = File.join(Dir.pwd, "Gemfile.lock")
+        unless File.exist?(lockfile_path)
+          puts "❌ Gemfile.lock not found in current directory"
+          exit 1
+        end
+
+        # Load config
+        config_data = YAML.safe_load_file(config_path, permitted_classes: [Date, Time]) || {}
+        exceptions = config_data["exceptions"] || []
+
+        if exceptions.empty?
+          puts "ℹ️  No exceptions found in .bundler-age-gate.yml"
+          exit 0
+        end
+
+        puts "🔍 Checking #{exceptions.size} exception(s) for cleanup..."
+        puts ""
+
+        # Parse lockfile
+        lockfile = Bundler::LockfileParser.new(Bundler.read_file(lockfile_path))
+        build_source_map(lockfile)
+
+        # Check each exception
+        removable_exceptions = []
+        kept_exceptions = []
+
+        exceptions.each do |exception|
+          gem_name = exception["gem"]
+          gem_version = exception["version"]
+
+          # Find gem spec
+          gem_spec = lockfile.specs.find do |spec|
+            spec.name == gem_name && (gem_version.nil? || spec.version.to_s == gem_version)
+          end
+
+          unless gem_spec
+            puts "⚠️  #{gem_name}#{gem_version ? " (#{gem_version})" : ""} - Not in Gemfile.lock (keeping exception)"
+            kept_exceptions << exception
+            next
+          end
+
+          # Check if exception is still needed
+          gem_source_url = @source_map[gem_name] || "https://rubygems.org"
+          source_config = @config.source_for_url(gem_source_url)
+          min_age_days = @cli_override_days || source_config.minimum_age_days
+          cutoff_date = Time.now - (min_age_days * 24 * 60 * 60)
+
+          release_date = fetch_gem_release_date(gem_name, gem_spec.version.to_s, source_config)
+
+          if release_date.nil?
+            puts "⚠️  #{gem_name} (#{gem_spec.version}) - Could not determine release date (keeping exception)"
+            kept_exceptions << exception
+            next
+          end
+
+          age_days = ((Time.now - release_date) / (24 * 60 * 60)).round
+
+          if release_date <= cutoff_date
+            # Gem is now old enough - exception can be removed
+            puts "✅ #{gem_name} (#{gem_spec.version}) - Released #{age_days} days ago (#{min_age_days} days required) - Removing"
+            removable_exceptions << exception
+          else
+            # Still too new - keep exception
+            puts "⏳ #{gem_name} (#{gem_spec.version}) - Released #{age_days} days ago (#{min_age_days} days required) - Keeping"
+            kept_exceptions << exception
+          end
+        end
+
+        puts ""
+
+        if removable_exceptions.empty?
+          puts "ℹ️  No exceptions can be removed at this time"
+          exit 0
+        end
+
+        # Update config file
+        config_data["exceptions"] = kept_exceptions
+        File.write(config_path, YAML.dump(config_data))
+
+        puts "✅ Removed #{removable_exceptions.size} exception(s) from .bundler-age-gate.yml"
+        puts "📝 #{kept_exceptions.size} exception(s) remaining"
+        exit 0
+      end
+
       def execute
         lockfile_path = File.join(Dir.pwd, "Gemfile.lock")
 

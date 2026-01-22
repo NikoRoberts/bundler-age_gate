@@ -40,6 +40,26 @@ Check for 30-day minimum:
 bundle age_check 30
 ```
 
+Clean up exceptions that are no longer needed:
+
+```bash
+bundle age_gate_cleanup
+```
+
+This command removes exceptions for gems that are now old enough to pass the age gate without an exception.
+
+Example output:
+```
+🔍 Checking 3 exception(s) for cleanup...
+
+✅ rails (7.1.3.1) - Released 15 days ago (7 days required) - Removing
+⏳ activerecord (7.1.4) - Released 3 days ago (7 days required) - Keeping
+⚠️  custom-gem (1.0.0) - Not in Gemfile.lock (keeping exception)
+
+✅ Removed 1 exception(s) from .bundler-age-gate.yml
+📝 2 exception(s) remaining
+```
+
 ## Configuration
 
 Create a `.bundler-age-gate.yml` file in your project root to customise behaviour:

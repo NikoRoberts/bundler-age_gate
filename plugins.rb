@@ -17,3 +17,11 @@ class AgeCheck < Bundler::Plugin::API
     Bundler::AgeGate::Command.new(days).execute
   end
 end
+
+class AgeGateCleanup < Bundler::Plugin::API
+  command "age_gate_cleanup"
+
+  def exec(_command, _args)
+    Bundler::AgeGate::Command.new.clean_exceptions
+  end
+end

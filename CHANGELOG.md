@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New configuration option: `max_workers` (range: 1-16, default: 8)
 - Thread-safe data structures with Mutex guards for concurrent access
 - Graceful fallback to sequential processing if parallelisation fails
+- **`bundle age_gate_cleanup` command**: Automatically removes exceptions that are no longer needed
 
 ### Changed
 - Refactored `Command#execute` for parallelisation support
