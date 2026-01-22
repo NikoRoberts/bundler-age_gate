@@ -1,0 +1,40 @@
+#!/bin/bash
+# Pre-commit hook for bundler-age_gate
+# Installation:
+#   1. Copy this file to .git/hooks/pre-commit
+#   2. Make it executable: chmod +x .git/hooks/pre-commit
+#
+# Or use with pre-commit framework: https://pre-commit.com/
+
+set -e
+
+# Only run if Gemfile.lock has changed
+if git diff --cached --name-only | grep -q "^Gemfile.lock$"; then
+  echo "🔍 Gemfile.lock changed, checking gem ages..."
+
+  # Ensure plugin is installed
+  if ! bundle plugin list | grep -q "bundler-age_gate"; then
+    echo "⚠️  Installing bundler-age_gate plugin..."
+    bundle plugin install bundler-age_gate
+  fi
+
+  # Run age check
+  if bundle age_check 7; then
+    echo "✅ All gems pass age gate check"
+  else
+    echo ""
+    echo "❌ Age gate check failed!"
+    echo ""
+    echo "Options:"
+    echo "  1. Wait for gems to mature (recommended)"
+    echo "  2. Request exception approval (see docs)"
+    echo "  3. Use older gem versions"
+    echo ""
+    echo "To bypass this check (NOT RECOMMENDED):"
+    echo "  git commit --no-verify"
+    echo ""
+    exit 1
+  fi
+fi
+
+exit 0

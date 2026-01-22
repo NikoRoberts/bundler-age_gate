@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-22
+
+### Added
+- Configuration file support (`.bundler-age-gate.yml`)
+- Exception handling mechanism with approval workflow
+- Audit logging for compliance (JSON format)
+- CI/CD integration examples:
+  - GitHub Actions with PR comments
+  - GitLab CI
+  - CircleCI
+  - Pre-commit hooks (shell and framework)
+- Configuration examples and templates
+- Comprehensive README documentation for enterprise deployment
+
+### Changed
+- Command now reads from config file for default minimum age
+- Exit messages now include helpful hints for exceptions
+
+### Fixed
+- Plugin compatibility with Bundler 4.x
+
 ## [0.1.0] - 2026-01-22
 
 ### Added

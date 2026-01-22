@@ -45,3 +45,6 @@
 *.rbc
 
 Gemfile.lock
+
+# Audit logs
+.bundler-age-gate.log

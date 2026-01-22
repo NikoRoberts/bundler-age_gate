@@ -1,0 +1,25 @@
+# Example GitLab CI configuration for bundler-age_gate
+# Add this to your .gitlab-ci.yml
+
+gem-age-gate-check:
+  stage: test
+  image: ruby:3.3
+  before_script:
+    - gem install bundler
+    - bundle install
+    - gem install bundler-age_gate
+    - bundle plugin install bundler-age_gate
+  script:
+    - bundle age_check 7
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - Gemfile.lock
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  artifacts:
+    when: always
+    paths:
+      - .bundler-age-gate.log
+    expire_in: 90 days
+  allow_failure: false

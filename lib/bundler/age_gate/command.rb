@@ -4,17 +4,23 @@ require "bundler"
 require "net/http"
 require "json"
 require "time"
+require_relative "config"
+require_relative "audit_logger"
 
 module Bundler
   module AgeGate
     class Command
       API_ENDPOINT = "https://rubygems.org/api/v1/versions/%s.json"
 
-      def initialize(days)
-        @min_age_days = days.to_i
+      def initialize(days = nil)
+        @config = Config.new
+        @min_age_days = days ? days.to_i : @config.minimum_age_days
         @cache = {}
         @violations = []
+        @excepted_violations = []
         @cutoff_date = Time.now - (@min_age_days * 24 * 60 * 60)
+        @audit_logger = AuditLogger.new(@config.audit_log_path)
+        @checked_gems_count = 0
       end
 
       def execute
@@ -54,6 +60,7 @@ module Bundler
         cache_key = "#{gem_name}@#{gem_version}"
         return if @cache.key?(cache_key)
 
+        @checked_gems_count += 1
         release_date = fetch_gem_release_date(gem_name, gem_version)
 
         if release_date.nil?
@@ -66,12 +73,21 @@ module Bundler
 
         if release_date > @cutoff_date
           age_days = ((Time.now - release_date) / (24 * 60 * 60)).round
-          @violations << {
+          violation = {
             name: gem_name,
             version: gem_version,
             release_date: release_date,
             age_days: age_days
           }
+
+          # Check if this gem has an exception
+          if @config.gem_excepted?(gem_name, gem_version)
+            violation[:excepted] = true
+            violation[:exception_reason] = @config.exception_reason(gem_name, gem_version)
+            @excepted_violations << violation
+          else
+            @violations << violation
+          end
         end
       rescue StandardError => e
         # Silently handle errors for individual gems
@@ -100,6 +116,29 @@ module Bundler
       end
 
       def display_results
+        # Show excepted violations first (if any)
+        unless @excepted_violations.empty?
+          puts "ℹ️  #{@excepted_violations.size} gem(s) have approved exceptions:\n\n"
+
+          @excepted_violations.sort_by { |v| v[:age_days] }.each do |violation|
+            puts "  ⚠️  #{violation[:name]} (#{violation[:version]})"
+            puts "     Released: #{violation[:release_date].strftime('%Y-%m-%d')} (#{violation[:age_days]} days ago)"
+            puts "     Exception: #{violation[:exception_reason]}"
+            puts ""
+          end
+        end
+
+        # Log audit entry
+        result = @violations.empty? ? "pass" : "fail"
+        all_violations = @violations + @excepted_violations
+        @audit_logger.log_check(
+          result: result,
+          violations: all_violations,
+          exceptions_used: @excepted_violations.size,
+          checked_gems_count: @checked_gems_count
+        )
+
+        # Display final result
         if @violations.empty?
           puts "✅ All gems meet the minimum age requirement (#{@min_age_days} days)"
           puts "🎉 Safe to proceed!"
@@ -114,6 +153,7 @@ module Bundler
           end
 
           puts "⛔ Age gate check FAILED"
+          puts "\n💡 To add an exception, create .bundler-age-gate.yml with approved exceptions"
           exit 1
         end
       end

@@ -1,0 +1,36 @@
+# Configuration file for bundler-age_gate
+# Place this file in your project root
+
+# Minimum age in days for gems (default: 7)
+minimum_age_days: 7
+
+# Path to audit log file (default: .bundler-age-gate.log)
+# This file tracks all checks for compliance purposes
+audit_log_path: .bundler-age-gate.log
+
+# Exceptions for approved gems
+# Each exception requires:
+#   - gem: gem name
+#   - version: (optional) specific version, omit to apply to all versions
+#   - reason: explanation for the exception
+#   - approved_by: who approved this exception
+#   - expires: (optional) when this exception expires (YYYY-MM-DD)
+exceptions:
+  # Example: Critical security fix
+  - gem: rails
+    version: 7.1.3.1
+    reason: "Critical security patch for CVE-2024-12345"
+    approved_by: security-team
+    expires: 2026-02-15
+
+  # Example: All versions of a gem (use sparingly)
+  - gem: internal-company-gem
+    reason: "Internal gem under our control"
+    approved_by: platform-team
+
+  # Example: Time-limited exception
+  - gem: new-monitoring-tool
+    version: 2.0.0
+    reason: "Required for incident response, approved by CTO"
+    approved_by: cto
+    expires: 2026-01-30

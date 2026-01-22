@@ -1,0 +1,43 @@
+# Example CircleCI configuration for bundler-age_gate
+# Add this job to your .circleci/config.yml
+
+version: 2.1
+
+jobs:
+  gem-age-gate-check:
+    docker:
+      - image: cimg/ruby:3.3
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-bundle-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install dependencies
+          command: bundle install --path vendor/bundle
+      - save_cache:
+          key: v1-bundle-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+      - run:
+          name: Install bundler-age_gate
+          command: |
+            gem install bundler-age_gate
+            bundle plugin install bundler-age_gate
+      - run:
+          name: Check gem ages
+          command: bundle age_check 7
+      - store_artifacts:
+          path: .bundler-age-gate.log
+          destination: age-gate-audit-log
+
+workflows:
+  version: 2
+  build-and-test:
+    jobs:
+      - gem-age-gate-check:
+          filters:
+            branches:
+              only:
+                - main
+                - /^feature\/.*/

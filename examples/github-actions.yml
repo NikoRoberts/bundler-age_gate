@@ -1,0 +1,76 @@
+# Example GitHub Actions workflow for bundler-age_gate
+# Add this to .github/workflows/gem-security-check.yml
+
+name: Gem Security Check
+
+on:
+  pull_request:
+    paths:
+      - 'Gemfile.lock'
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    # Run daily at 9am UTC to catch newly released gems
+    - cron: '0 9 * * *'
+
+jobs:
+  age-gate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Install bundler-age_gate plugin
+        run: |
+          gem install bundler-age_gate
+          bundle plugin install bundler-age_gate
+
+      - name: Check gem ages (7 day minimum)
+        run: bundle age_check 7
+        continue-on-error: false
+
+      - name: Upload audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: age-gate-audit-log
+          path: .bundler-age-gate.log
+          retention-days: 90
+
+      - name: Comment on PR with results
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const logContent = fs.readFileSync('.bundler-age-gate.log', 'utf8');
+            const lastCheck = JSON.parse(logContent.trim().split('\n').pop());
+
+            let comment = '## 🔒 Gem Age Gate Check Failed\n\n';
+            comment += `Found ${lastCheck.violations_count} gem(s) younger than 7 days:\n\n`;
+
+            lastCheck.violations.forEach(v => {
+              if (!v.excepted) {
+                comment += `- ❌ **${v.gem}** (${v.version}) - Released ${v.age_days} days ago\n`;
+              }
+            });
+
+            comment += '\n### Exception Process\n';
+            comment += '1. Review the [Security Exception Process](LINK_TO_YOUR_EXCEPTION_PROCESS)\n';
+            comment += '2. Get approval from Security Team\n';
+            comment += '3. Add exception to `.bundler-age-gate.yml`\n';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

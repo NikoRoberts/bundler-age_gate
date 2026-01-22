@@ -1,0 +1,15 @@
+# Pre-commit framework configuration for bundler-age_gate
+# Installation:
+#   1. Install pre-commit: pip install pre-commit
+#   2. Add this file as .pre-commit-config.yaml in your repo
+#   3. Run: pre-commit install
+
+repos:
+  - repo: local
+    hooks:
+      - id: bundler-age-gate
+        name: Check gem ages with bundler-age_gate
+        entry: bash -c 'bundle plugin list | grep -q bundler-age_gate || bundle plugin install bundler-age_gate; bundle age_check 7'
+        language: system
+        files: ^Gemfile\.lock$
+        pass_filenames: false
