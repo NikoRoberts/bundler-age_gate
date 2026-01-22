@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "bundler-age_gate"
   spec.version = Bundler::AgeGate::VERSION
   spec.authors = ["Niko Roberts"]
-  spec.email = ["niko@example.com"]
+  spec.email = ["niko.roberts@airtasker.com"]
 
   spec.summary = "A Bundler plugin to enforce minimum gem age requirements"
   spec.description = "Checks your Gemfile.lock against the RubyGems API to ensure no gems are younger than a specified number of days"
