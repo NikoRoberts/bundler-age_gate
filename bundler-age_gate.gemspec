@@ -18,7 +18,8 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
-  spec.files = Dir.glob("{lib,plugins.rb}/**/*") + %w[
+  spec.files = Dir.glob("lib/**/*") + %w[
+    plugins.rb
     bundler-age_gate.gemspec
     README.md
     LICENSE
